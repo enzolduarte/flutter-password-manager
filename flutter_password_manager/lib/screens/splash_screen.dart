@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_password_manager/data/settings_repository.dart';
 import 'package:flutter_password_manager/screens/routes.dart';
 import 'package:lottie/lottie.dart';
 
@@ -24,21 +25,21 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _navigate();
-  // }
+  @override
+  void initState() {
+    super.initState();
+    _navigate();
+  }
 
-  // Future<void> _navigate() async {
-  //   await Future.delayed(const Duration(seconds: 2));
-  //   final repo = await SettingsRepository.create();
-  //   final showIntro = await repo.getShowIntro();
-  //   if (!mounted) return;
-  //   if (showIntro) {
-  //     Navigator.pushReplacementNamed(context, Routes.intro);
-  //   } else {
-  //     Navigator.pushReplacementNamed(context, Routes.home);
-  //   }
-  // }
+  Future<void> _navigate() async {
+    await Future.delayed(const Duration(seconds: 2));
+    final repo = await SettingsRepository.create();
+    final showIntro = await repo.getShowIntro();
+    if (!mounted) return;
+    if (showIntro) {
+      Navigator.pushReplacementNamed(context, Routes.intro);
+    } else {
+      Navigator.pushReplacementNamed(context, Routes.login);
+    }
+  }
 }

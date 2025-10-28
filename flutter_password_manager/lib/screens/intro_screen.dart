@@ -144,7 +144,7 @@ class _IntroScreenState extends State<IntroScreen> {
     {
       'title': 'Comece Agora',
       'subtitle': 'Vamos começar a usar o app!',
-      'lottie': 'assets/lottie/intro3.json',
+      'lottie': 'assets/lottie/login_and_signup.json',
     },
   ];
 }
