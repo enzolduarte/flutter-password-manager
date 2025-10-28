@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'new_pass_screen.dart'; // ✅ Import da tela de geração
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,6 +13,42 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isPasswordVisible = false;
+  List<Map<String, dynamic>> _passwords = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPasswords();
+  }
+
+  Future<void> _loadPasswords() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('passwords')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      setState(() {
+        _passwords = snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar senhas: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Imagem do banner
                 Image.asset(
                   'assets/images/premium_lock.png',
                   height: 100,
@@ -57,7 +93,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 12),
-                // Título Premium
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -93,7 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Email do usuário
                 Text(
                   user?.email ?? 'usuário@email.com',
                   style: const TextStyle(
@@ -121,228 +155,136 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // Lista de senhas
+          // Lista de senhas (agora vinda via Firestore direto)
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user?.uid)
-                  .collection('passwords')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Erro ao carregar senhas',
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.lock_outline,
-                          size: 80,
-                          color: Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Nenhuma senha salva ainda',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final passwords = snapshot.data!.docs;
-
-                return ListView.builder(
-                  itemCount: passwords.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemBuilder: (context, index) {
-                    final doc = passwords[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final title = data['title'] ?? 'Sem título';
-                    final password = data['password'] ?? '';
-
-                    return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(12),
-                        leading: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(
-                            Icons.lock,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                        title: Text(
-                          title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            _isPasswordVisible
-                                ? password
-                                : '•' * password.length,
-                            style: TextStyle(
-                              fontSize: 14,
-                              letterSpacing: 2,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _passwords.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Botão olho (mostrar/ocultar)
-                            IconButton(
-                              icon: Icon(
-                                _isPasswordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: Colors.blue.shade700,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _isPasswordVisible = !_isPasswordVisible;
-                                });
-                              },
+                            Icon(
+                              Icons.lock_outline,
+                              size: 80,
+                              color: Colors.grey.shade300,
                             ),
-                            // Botão delete
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                color: Colors.red,
+                            const SizedBox(height: 16),
+                            Text(
+                              'Nenhuma senha salva ainda',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade600,
                               ),
-                              onPressed: () => _showDeleteConfirm(doc),
                             ),
                           ],
                         ),
-                        onTap: () => _copyToClipboard(password),
+                      )
+                    : ListView.builder(
+                        itemCount: _passwords.length,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemBuilder: (context, index) {
+                          final data = _passwords[index];
+                          final title = data['title'] ?? 'Sem título';
+                          final password = data['password'] ?? '';
+
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(12),
+                              leading: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.lock,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              title: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(
+                                  _isPasswordVisible
+                                      ? password
+                                      : '•' * password.length,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    letterSpacing: 2,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      _isPasswordVisible
+                                          ? Icons.visibility
+                                          : Icons.visibility_off,
+                                      color: Colors.blue.shade700,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _isPasswordVisible = !_isPasswordVisible;
+                                      });
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =>
+                                        _showDeleteConfirm(data['id']),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => _copyToClipboard(password),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                );
-              },
-            ),
           ),
         ],
       ),
+
+      // ✅ Agora o FAB leva para a tela NewPasswordScreen
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.blue,
         child: const Icon(Icons.add, color: Colors.white),
-        onPressed: _showAddPasswordDialog,
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NewPasswordScreen()),
+          );
+          _loadPasswords(); // recarrega senhas ao voltar
+        },
       ),
     );
   }
 
-  void _showAddPasswordDialog() {
-    final titleController = TextEditingController();
-    final passwordController = TextEditingController();
+  // --- Funções auxiliares ---
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Adicionar Senha'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(
-                labelText: 'Título (ex: Gmail)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                prefixIcon: const Icon(Icons.label),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Senha',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                prefixIcon: const Icon(Icons.lock),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-            ),
-            onPressed: () {
-              if (titleController.text.isNotEmpty &&
-                  passwordController.text.isNotEmpty) {
-                _addPassword(titleController.text, passwordController.text);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✓ Senha salva com sucesso!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Preencha todos os campos'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              'Salvar',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteConfirm(DocumentSnapshot doc) {
+  void _showDeleteConfirm(String docId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar Deleção'),
-        content: const Text('Tem certeza que deseja deletar esta senha?'),
+        content: const Text('Deseja deletar esta senha?'),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         actions: [
           TextButton(
@@ -350,11 +292,18 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            onPressed: () {
-              doc.reference.delete();
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .collection('passwords')
+                    .doc(docId)
+                    .delete();
+                _loadPasswords();
+              }
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -363,29 +312,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
-            child: const Text(
-              'Deletar',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Deletar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
-  }
-
-  void _addPassword(String title, String password) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && title.isNotEmpty && password.isNotEmpty) {
-      FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('passwords')
-          .add({
-        'title': title,
-        'password': password,
-        'createdAt': DateTime.now(),
-      });
-    }
   }
 
   void _copyToClipboard(String password) {
@@ -412,19 +343,16 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/', (route) => false);
               }
             },
-            child: const Text(
-              'Sair',
-              style: TextStyle(color: Colors.white),
-            ),
+            child:
+                const Text('Sair', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_password_manager/screens/routes.dart';
 import 'package:lottie/lottie.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ✅ Import necessário
 
 class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key});
@@ -13,15 +14,39 @@ class _IntroScreenState extends State<IntroScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   bool _dontShowAgain = false;
+  bool _isLoading = true; // ✅ para mostrar tela branca enquanto verifica prefs
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfShouldSkipIntro();
+  }
+
+  Future<void> _checkIfShouldSkipIntro() async {
+    final prefs = await SharedPreferences.getInstance();
+    final skipIntro = prefs.getBool('skipIntro') ?? false;
+    if (skipIntro && mounted) {
+      // ✅ pula direto para a home
+      Navigator.pushReplacementNamed(context, Routes.home);
+    } else {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final isLastPage = _currentPage == _pages.length - 1;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Aqui será adicionado o conteudo da intro
+            // Conteúdo da introdução
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -40,15 +65,15 @@ class _IntroScreenState extends State<IntroScreen> {
                         Expanded(child: Lottie.asset(page['lottie']!)),
                         Text(
                           page['title']!,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text(
                           page['subtitle']!,
-                          style: TextStyle(fontSize: 16),
+                          style: const TextStyle(fontSize: 16),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -58,7 +83,7 @@ class _IntroScreenState extends State<IntroScreen> {
               ),
             ),
 
-            // Aqui será adicionado o checkbox
+            // Checkbox de "não mostrar novamente"
             if (isLastPage)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -72,14 +97,14 @@ class _IntroScreenState extends State<IntroScreen> {
                         });
                       },
                     ),
-                    Expanded(
+                    const Expanded(
                       child: Text('Não mostrar essa introdução novamente.'),
                     ),
                   ],
                 ),
               ),
 
-            // Aqui serão adicionados os botões de navegação
+            // Botões de navegação
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 24.0,
@@ -88,11 +113,10 @@ class _IntroScreenState extends State<IntroScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Botão aVoltar à partir da tela 2
                   if (_currentPage > 0)
-                    TextButton(onPressed: _onBack, child: Text('Voltar'))
+                    TextButton(onPressed: _onBack, child: const Text('Voltar'))
                   else
-                    SizedBox(width: 80), // espaço para alinhar
+                    const SizedBox(width: 80),
                   TextButton(
                     onPressed: _onNext,
                     child: Text(isLastPage ? 'Concluir' : 'Avançar'),
@@ -109,7 +133,7 @@ class _IntroScreenState extends State<IntroScreen> {
   void _onNext() {
     if (_currentPage < _pages.length - 1) {
       _pageController.nextPage(
-        duration: Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeIn,
       );
     } else {
@@ -117,14 +141,21 @@ class _IntroScreenState extends State<IntroScreen> {
     }
   }
 
-  _finishIntro() {
-    Navigator.pushReplacementNamed(context, Routes.home);
+  Future<void> _finishIntro() async {
+    // ✅ grava a preferência no SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    if (_dontShowAgain) {
+      await prefs.setBool('skipIntro', true);
+    }
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, Routes.home);
+    }
   }
 
   void _onBack() {
     if (_currentPage > 0) {
       _pageController.previousPage(
-        duration: Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     }
